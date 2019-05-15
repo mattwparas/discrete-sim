@@ -1,13 +1,28 @@
 import numpy as np
+import heapq
+
 
 # Constants
-PSC_TRANSFER_RATE = 10 # poisson (arrivals per minute)
-CSC_PROCESSING_RATE = 3 # exponential
+PSC_TRANSFER_RATE = 1 # poisson (arrivals per day)
+CSC_PROCESSING_RATE = 5 # exponential
+ISCHEMIC_RATE = 4 #
+HEMORRHAGIC_RATE = 6 #
+
 NUMBER_OF_PSC_HOSPITALS = 5
-CSC_ARRIVAL_RATE = NUMBER_OF_PSC_HOSPITALS * PSC_TRANSFER_RATE # poisson
+# CSC_ARRIVAL_RATE = NUMBER_OF_PSC_HOSPITALS * PSC_TRANSFER_RATE # poisson
+
+
+CSC_ARRIVAL_RATE = 5 # per day
+
+
 NUMBER_OF_BEDS_AT_CSC = 50 # check on this
-DURATION = 100 # min
+DURATION = 1000 # min
 COST_PER_BED_PER_DAY = 12345 # dollars
+
+
+# hemorrhagic = 15%
+# ischemic = 85%
+
 
 
 
@@ -24,8 +39,20 @@ class Patient:
     def __init__(self, pid, current_time):
         self.id = pid
         self.spawn_time = current_time
+
+        if np.random.uniform() < .15:
+            self.stroke_type = "HEMORRHAGIC"
+            self.duration = np.random.exponential(HEMORRHAGIC_RATE)
+        else:
+            self.stroke_type = "ISCHEMIC"
+            self.duration = np.random.exponential(ISCHEMIC_RATE)
+
+
         self.duration = np.random.exponential(CSC_PROCESSING_RATE)
         self.completion_time = self.spawn_time + self.duration
+
+        # cost
+        self.cost = 0
 
 class Event:
     '''
@@ -36,6 +63,9 @@ class Event:
         self.patient = patient
         self.completion_time = completion_time
 
+    def __lt__(self, other):
+        return self.completion_time < other.completion_time
+
 class Arrive(Event):
     '''
     Represents the arrival to the CSC
@@ -45,6 +75,13 @@ class Arrive(Event):
 class Depart(Event):
     '''
     Represents the departure from the CSC
+    '''
+    pass
+
+
+class PSC:
+    '''
+    This represents the state of the hospital at 
     '''
     pass
 
@@ -66,6 +103,7 @@ class CSCSpawner:
         self.spawning_queue = []
 
         while self.current_time < self.duration:
+            # print("spawning")
             self.spawn_patient()
 
     def spawn_patient(self):
@@ -78,9 +116,6 @@ class CSCSpawner:
         print("Duration: {}".format(self.duration))
         print("Patients Spawned: {}".format(self.number_spawned))
 
-# Make a sorted list of events
-# arrivals = CSCSpawner()
-# queue = [Arrive(x, x.spawn_time) for x in arrivals.spawning_queue]
 
 class Hospital:
     '''
@@ -92,12 +127,16 @@ class Hospital:
     '''
     def __init__(self):
         self.max_beds = NUMBER_OF_BEDS_AT_CSC
-        self.beds = []
+        self.bed_count = 0
+        # self.beds = []
         self.rejected_count = 0
         self.spawner_queue = CSCSpawner().spawning_queue
         self.current_time = 0
-        self.event_queue = [Arrive(x, x.spawn_time) for x in self.spawner_queue] # this is gonna be interesting
+        self.event_queue = [Arrive(x, x.spawn_time) for x in self.spawner_queue]
+        heapq.heapify(self.event_queue)
         self.duration = DURATION
+
+        # print(len(self.event_queue))
 
     def sort_event_queue(self):
         self.event_queue = sorted(self.event_queue, key = lambda x: x.completion_time)
@@ -107,7 +146,7 @@ class Hospital:
         Getter to pop off the queue
         '''
         if self.event_queue:
-            return self.event_queue.pop(0)
+            return heapq.heappop(self.event_queue)
         else:
             return False
 
@@ -120,13 +159,15 @@ class Hospital:
         If the beds are full, increment the rejected count and move on to the next event
         '''
         patient_obj = arrival.patient
-        # print(len(self.beds))
-        if len(self.beds) < self.max_beds:
+        # print(self.bed_count)
+        if self.bed_count < self.max_beds:
             print("Arrived: Patient #{}, at time {} with {} available beds".format(patient_obj.id, 
-            self.current_time, self.max_beds - len(self.beds)))
-            self.beds.append(patient_obj)
+            self.current_time, self.max_beds - self.bed_count))
+            # self.beds.append(patient_obj)
+            self.bed_count += 1
             departure_event = Depart(patient_obj, patient_obj.completion_time)
-            self.event_queue.append(departure_event)
+            heapq.heappush(self.event_queue, departure_event)
+            # heapq.heapify(self.event_queue)
         else:
             print("Rejected: Patient #{}, beds full at time {}".format(patient_obj.id, self.current_time))
             self.rejected_count += 1
@@ -138,7 +179,8 @@ class Hospital:
         '''
         patient_obj = departure.patient
         print("Departed: Patient #{}, at time {}".format(patient_obj.id, self.current_time))
-        self.beds = [x for x in self.beds if x.id != patient_obj.id]
+        # self.beds = [x for x in self.beds if x.id != patient_obj.id]
+        self.bed_count -= 1
 
     def process_events(self):
         # print(len(self.event_queue))
@@ -153,13 +195,25 @@ class Hospital:
             # pass
         
         self.current_time = event.completion_time
-        self.sort_event_queue()
+        # self.sort_event_queue()
 
     def run_simulation(self):
-        while self.current_time < self.duration:
-            self.process_events()
 
-        print(self.rejected_count)
+        number_of_events = 0.0
+        bed_count = 0.0
+
+        while self.current_time < self.duration:
+            # print(self.current_time)
+            self.process_events()
+            bed_count += self.bed_count
+            number_of_events += 1
+
+        average_bed_count = bed_count / number_of_events
+
+        print("Average Bed Count : {}".format(average_bed_count))
+
+
+        # print(self.rejected_count)
 
 hospital = Hospital()
 
