@@ -83,50 +83,66 @@ class Hospital:
         self.arrival_rate = arrival_rate
         self.rejected_count = 0
         self.time_stamps = []
+        self.average_bed_count = 0
     
     def process_departure(self, departure_event):
         self.bed_count -= 1
         self.time_stamps.append((self.bed_count, departure_event.patient.completion_time))
         return False
 
+    def calculate_average(self):
+        average = 0
+        # time weighted average
+        for i in range(len(self.time_stamps) - 1):
+            pair1 = self.time_stamps[i]
+            pair2 = self.time_stamps[i+1]
+            gap = pair2[1] - pair1[1]
+            time_slice = gap / DURATION
+            average += pair1[0] * time_slice
+
+        self.average_bed_count = average
+
+
     def pprint(self):
+        self.calculate_average()
         print("------------------------")
         print("Hospital ID: ", self.pid)
         print("Max Beds: ", self.max_beds)
         print("Number Rejected: ", self.rejected_count)
+        print("Average Number of beds filled: ", self.average_bed_count)
 
     def graph_count(self):
+        self.calculate_average()
         y_vals = [x[0] for x in self.time_stamps]
         x_vals = [x[1] for x in self.time_stamps]
 
-        plt.plot(x_vals, y_vals, 'o')
+        plt.figure(figsize = (20, 5))
+        plt.plot(x_vals, y_vals, '-r')
+        plt.axhline(y = self.average_bed_count)
+        plt.xlabel("Time Stamp")
+        plt.ylabel("Number of Patients")
+        if self.pid == 0:
+            plt.title("Number of Patients over Time at CSC")
+        else:
+            plt.title("Number of Patients over Time at PSC #{}".format(self.pid))
         plt.show()
 
 class PSC(Hospital):
     def process_arrival(self, arrival_event):
-
-        # print(self.bed_count)
-
         patient = arrival_event.patient
-
         if self.bed_count < self.max_beds:
-
             if np.random.uniform() < .13:
                 # transfer immediately to the CSC
                 arrival_event = Event(patient, patient.spawn_time + 0, "Arrival", 0)
                 return arrival_event
-            
             else:
                 self.bed_count += 1
                 # generate a departure event, for the duration of their visit
                 departure_event = Event(patient, patient.completion_time, "Departure", self.pid)
                 return departure_event
 
-        # print("Rejected")
         self.rejected_count += 1
-
         self.time_stamps.append((self.bed_count, patient.completion_time))
-
         return False
     
 
@@ -210,15 +226,15 @@ class Simulation:
         
         if event.event_type == "Arrival":
 
-            print("Arrived: Patient #{}, at time {}, at hospital {}".format(event.patient.id, 
-            self.current_time, event.hospital_id))
+            # print("Arrived: Patient #{}, at time {}, at hospital {}".format(event.patient.id, 
+            # self.current_time, event.hospital_id))
 
             new_event = temp_hospital.process_arrival(event)
 
         elif event.event_type == "Departure":
 
-            print("Departure: Patient #{}, at time {}, at hospital {}".format(event.patient.id, 
-            self.current_time, event.hospital_id))
+            # print("Departure: Patient #{}, at time {}, at hospital {}".format(event.patient.id, 
+            # self.current_time, event.hospital_id))
             
             new_event = temp_hospital.process_departure(event)
         
@@ -228,38 +244,6 @@ class Simulation:
         self.current_time = event.completion_time
         
         return
-
-    def process_arrival(self, arrival):
-        '''
-        Process an arrival to any hospital
-        If the beds are not full, log the arrival and create a departure event
-        add it to the queue
-
-        If the beds are full, increment the rejected count and move on to the next event
-        '''
-        # patient_obj = arrival.patient
-
-        temp_hospital = self.get_hospital(arrival.hospital_id)
-
-        new_event = temp_hospital.process_arrival(arrival)
-
-        if new_event:
-            heapq.heappush(self.event_queue, new_event)
-
-    def process_departure(self, departure):
-        '''
-        2 cases:
-            - process a departure from the PSC in which the patient is being transfered to the CSC
-            - process a departure from the CSC
-        '''
-        # patient_obj = departure.patient
-
-        temp_hospital = self.get_hospital(departure.hospital_id)
-
-        new_event = temp_hospital.process_departure(departure)
-
-        if new_event:
-            heapq.heappush(self.event_queue, new_event)
 
     def run_simulation(self):
 
@@ -281,7 +265,7 @@ class Simulation:
         # print("Average Bed Count : {}".format(average_bed_count))
 
 
-
+# average length of stay in hospital is 4.5 days
 
 if __name__ == "__main__":
     
@@ -307,7 +291,3 @@ if __name__ == "__main__":
         hospital.pprint()
         # print(hospital.time_stamps)
         hospital.graph_count()
-
-
-
-
