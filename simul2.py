@@ -3,6 +3,7 @@ import heapq
 import time
 import csv
 import matplotlib.pyplot as plt
+import copy
 
 # Constants
 ISCHEMIC_RATE = None # days
@@ -207,6 +208,51 @@ class Hospital:
             plt.title("Number of Patients over Time at PSC #{}".format(self.pid))
         plt.show()
 
+
+    def graph_distribution(self):
+        '''
+        Plots the number of beds at each time stamp (event time step)
+        '''
+
+        self.calculate_average()
+
+        x_vals = list(range(self.max_beds + 1))
+        y_vals = [0 for x in range(self.max_beds + 1)]
+
+
+        # average = 0
+        # time weighted average
+        for i in range(len(self.time_stamps) - 1):
+            pair1 = self.time_stamps[i]
+            pair2 = self.time_stamps[i+1]
+            gap = pair2[1] - pair1[1]
+            time_slice = gap / DURATION
+
+            y_vals[pair1[0]] += time_slice
+
+        plt.figure(figsize = (20, 5))
+        plt.plot(x_vals, y_vals, '-o')
+        plt.xlabel("Number of Beds Filled")
+        plt.ylabel("Percentage of Time in that State")
+        plt.title("Distribution of Beds Filled")
+        plt.show()
+
+        return
+        # self.calculate_average()
+        # y_vals = [x[0] for x in self.time_stamps]
+        # x_vals = [x[1] for x in self.time_stamps]
+
+        # plt.figure(figsize = (20, 5))
+        # plt.plot(x_vals, y_vals, '--b')
+        # plt.axhline(y = self.average_bed_count)
+        # plt.xlabel("Time Stamp")
+        # plt.ylabel("Number of Patients")
+        # if self.pid == 0:
+        #     plt.title("Number of Patients over Time at CSC")
+        # else:
+        #     plt.title("Number of Patients over Time at PSC #{}".format(self.pid))
+        # plt.show()
+
 class PSC(Hospital):
     '''
     Child class for the PSC
@@ -348,7 +394,8 @@ class Simulation:
     '''
     Parent class for Simulation
     '''
-    def __init__(self, hospital_dict, verbose = False):
+    def __init__(self, sid, hospital_dict, verbose = False):
+        self.sid = sid
         self.hospital_dict = hospital_dict
         self.event_queue = arrival_spawner(hospital_list)
         heapq.heapify(self.event_queue)
@@ -429,20 +476,17 @@ def combine_simulations(list_of_simulations):
     avg_should = 0
     avg_should_not = 0
 
-    for hospital in hospital_list:
-        if isinstance(hospital, CSC):
-            # pass
-            # hospital.pprint()
-            # print(hospital.time_stamps)
-            # hospital.graph_count()
-            hospital.calculate_average()
-            avg_rej += hospital.rejected_count
-            avg_rej_should += hospital.should_be_rej
-            avg_rej_should_not += hospital.should_not_be_rej
-            avg_number_beds_filled += hospital.average_bed_count
-            avg_stroke_patient_count += hospital.average_stroke_count
-            avg_should += hospital.average_should_be
-            avg_should_not += hospital.average_should_not
+    for simulation in list_of_simulations:
+        for hospital in simulation.hospital_dict.values():
+            if isinstance(hospital, CSC):
+                hospital.calculate_average()
+                avg_rej += hospital.rejected_count
+                avg_rej_should += hospital.should_be_rej
+                avg_rej_should_not += hospital.should_not_be_rej
+                avg_number_beds_filled += hospital.average_bed_count
+                avg_stroke_patient_count += hospital.average_stroke_count
+                avg_should += hospital.average_should_be
+                avg_should_not += hospital.average_should_not
     
     avg_rej /= simulation_num
     avg_rej_should /= simulation_num
@@ -452,13 +496,19 @@ def combine_simulations(list_of_simulations):
     avg_should /= simulation_num
     avg_should_not /= simulation_num
 
+    print("---------------------------------------------------")
+    print("################ Averaged Results #################")
+    print("---------------------------------------------------")
     print("Number Rejected: ", avg_rej)
     print("Number of Stroke Patients Rejected who should be there: ", avg_rej_should)
     print("Number of Stroke Patients Rejected who should not be there: ", avg_rej_should_not)
-    print("Average Number of beds filled: ", avg_number_beds_filled)
-    print("Average Stroke Patient Count: ", avg_stroke_patient_count)
-    print("Average # of stroke patients that should be there: ", avg_should)
-    print("Average # of stroke patients that shouldn't be there: ", avg_should_not)
+    print("Percentage of Stroke Patients who were REJECTED \n \
+        that should have been transferred {0:4.2f}%".format(100 * avg_rej_should / avg_rej))
+    print("Average Number of beds filled: {0:4.2f}".format(avg_number_beds_filled))
+    print("Average Stroke Patient Count: {0:4.2f}".format(avg_stroke_patient_count))
+    print("Average # of stroke patients that should be there: {0:4.2f}".format(avg_should))
+    print("Average # of stroke patients that shouldn't be there: {0:4.2f}".format(avg_should_not))
+    print("---------------------------------------------------")
 
     return
 
@@ -473,6 +523,7 @@ if __name__ == "__main__":
 
     hospital_list = []
 
+    print("Reading the Config File...")
     with open('hospitals.csv', 'r', encoding='utf-8-sig') as csvfile:
         readCSV = csv.reader(csvfile, delimiter=',')
         rows = [row for row in readCSV]
@@ -539,16 +590,36 @@ if __name__ == "__main__":
             print("Something wrong with the config file, please reset back to base state")
             # exit
 
+    print("     -> Finished Reading the Config File!\n")
+
+    print("Building the simulations...\n")
 
     hospital_dict = build_hospital_dict(hospital_list)
 
     simulations = []
 
     for i in range(NUMBER_OF_SIMULATIONS):
-        mySimulation = Simulation(hospital_dict)
+
+        print("Starting Simulation # {}...".format(i + 1))
+
+        my_hospital_dict = copy.deepcopy(hospital_dict)
+
+        mySimulation = Simulation(i, my_hospital_dict)
         # mySimulation.set_verbose(False)
         mySimulation.run_simulation()
+
+        for hospital in my_hospital_dict.values():
+            if isinstance(hospital, CSC):
+                # pass
+                hospital.pprint()
+                # print(hospital.time_stamps)
+                # hospital.graph_count()
+
+                hospital.graph_distribution()
+
+
         simulations.append(mySimulation)
+        print("     -> Finished Simulation # {}!\n".format(i + 1))
 
     combine_simulations(simulations)
     # for hospital in hospital_list:
