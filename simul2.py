@@ -4,6 +4,7 @@ import time
 import csv
 import matplotlib.pyplot as plt
 import copy
+from operator import add
 
 # Constants
 ISCHEMIC_RATE = None # days
@@ -123,6 +124,7 @@ class Hospital:
         self.average_should_not = 0
         self.should_be_rej = 0
         self.should_not_be_rej = 0
+        self.hist_values = []
     
     def process_departure(self, departure_event):
         '''
@@ -170,6 +172,21 @@ class Hospital:
         self.average_should_not = self.helper_TWA(self.should_not_be_there_stamps)
         self.average_stroke_count = self.helper_TWA(self.stroke_patient_stamps)
 
+        y_vals = [0 for x in range(self.max_beds + 1)]
+
+
+        # average = 0
+        # time weighted average
+        for i in range(len(self.time_stamps) - 1):
+            pair1 = self.time_stamps[i]
+            pair2 = self.time_stamps[i+1]
+            gap = pair2[1] - pair1[1]
+            time_slice = gap / DURATION
+
+            y_vals[pair1[0]] += time_slice
+
+        self.hist_values = y_vals
+
 
 
 
@@ -213,25 +230,11 @@ class Hospital:
         '''
         Plots the number of beds at each time stamp (event time step)
         '''
-
         self.calculate_average()
-
         x_vals = list(range(self.max_beds + 1))
-        y_vals = [0 for x in range(self.max_beds + 1)]
-
-
-        # average = 0
-        # time weighted average
-        for i in range(len(self.time_stamps) - 1):
-            pair1 = self.time_stamps[i]
-            pair2 = self.time_stamps[i+1]
-            gap = pair2[1] - pair1[1]
-            time_slice = gap / DURATION
-
-            y_vals[pair1[0]] += time_slice
-
+        
         plt.figure(figsize = (20, 5))
-        plt.plot(x_vals, y_vals, '-o')
+        plt.plot(x_vals, self.hist_values, '-o')
         plt.xlabel("Number of Beds Filled")
         plt.ylabel("Percentage of Time in that State")
         plt.title("Distribution of Beds Filled")
@@ -271,9 +274,7 @@ class PSC(Hospital):
         if np.random.uniform() < self.transfer_rate and isinstance(patient, Patient):
             if not CSC_IS_FULL:
                 # transfer immediately to the CSC
-                transfer_time = 0
-                arrival_event = Event(patient, patient.spawn_time + 0, "Arrival", 0)
-                patient.update_completion_time(0)
+                arrival_event = Event(patient, patient.spawn_time, "Arrival", 0)
                 return arrival_event
 
         # else:
@@ -475,6 +476,7 @@ def combine_simulations(list_of_simulations):
     avg_stroke_patient_count = 0
     avg_should = 0
     avg_should_not = 0
+    avg_hist = [0 for x in range(number_beds_ICU + 1)]
 
     for simulation in list_of_simulations:
         for hospital in simulation.hospital_dict.values():
@@ -487,6 +489,7 @@ def combine_simulations(list_of_simulations):
                 avg_stroke_patient_count += hospital.average_stroke_count
                 avg_should += hospital.average_should_be
                 avg_should_not += hospital.average_should_not
+                avg_hist = list(map(add, avg_hist, hospital.hist_values))
     
     avg_rej /= simulation_num
     avg_rej_should /= simulation_num
@@ -495,6 +498,7 @@ def combine_simulations(list_of_simulations):
     avg_stroke_patient_count /= simulation_num
     avg_should /= simulation_num
     avg_should_not /= simulation_num
+    avg_hist = [x / simulation_num for x in avg_hist]
 
     print("---------------------------------------------------")
     print("################ Averaged Results #################")
@@ -509,6 +513,15 @@ def combine_simulations(list_of_simulations):
     print("Average # of stroke patients that should be there: {0:4.2f}".format(avg_should))
     print("Average # of stroke patients that shouldn't be there: {0:4.2f}".format(avg_should_not))
     print("---------------------------------------------------")
+
+    x_vals = list(range(number_beds_ICU + 1))
+    
+    plt.figure(figsize = (20, 5))
+    plt.plot(x_vals, avg_hist, '-o')
+    plt.xlabel("Number of Beds Filled")
+    plt.ylabel("Percentage of Time in that State")
+    plt.title("Distribution of Beds Filled")
+    plt.show()
 
     return
 
@@ -615,7 +628,7 @@ if __name__ == "__main__":
                 # print(hospital.time_stamps)
                 # hospital.graph_count()
 
-                hospital.graph_distribution()
+                # hospital.graph_distribution()
 
 
         simulations.append(mySimulation)
