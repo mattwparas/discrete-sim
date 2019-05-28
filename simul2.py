@@ -8,14 +8,15 @@ import matplotlib.pyplot as plt
 ISCHEMIC_RATE = None # days
 HEMORRHAGIC_RATE = None # days
 
-DURATION = 1000 # days
+DURATION = None # days
 CSC_IS_FULL = False
 TRANSFER_NEEDED_PERCENTAGE = None
 NON_STROKE_PATIENT_DURATION = None
 PERCENTAGE_NON_STROKE = None
+NUMBER_OF_SIMULATIONS = None
 
 # set the seed
-np.random.seed(23)
+# np.random.seed(23)
 
 class Patient:
     '''
@@ -417,7 +418,50 @@ def combine_simulations(list_of_simulations):
     '''
     average results from the simulation somehow
     '''
+
+    simulation_num = len(list_of_simulations)
+
+    avg_rej = 0
+    avg_rej_should = 0
+    avg_rej_should_not = 0
+    avg_number_beds_filled = 0
+    avg_stroke_patient_count = 0
+    avg_should = 0
+    avg_should_not = 0
+
+    for hospital in hospital_list:
+        if isinstance(hospital, CSC):
+            # pass
+            # hospital.pprint()
+            # print(hospital.time_stamps)
+            # hospital.graph_count()
+            hospital.calculate_average()
+            avg_rej += hospital.rejected_count
+            avg_rej_should += hospital.should_be_rej
+            avg_rej_should_not += hospital.should_not_be_rej
+            avg_number_beds_filled += hospital.average_bed_count
+            avg_stroke_patient_count += hospital.average_stroke_count
+            avg_should += hospital.average_should_be
+            avg_should_not += hospital.average_should_not
+    
+    avg_rej /= simulation_num
+    avg_rej_should /= simulation_num
+    avg_rej_should_not /= simulation_num
+    avg_number_beds_filled /= simulation_num
+    avg_stroke_patient_count /= simulation_num
+    avg_should /= simulation_num
+    avg_should_not /= simulation_num
+
+    print("Number Rejected: ", avg_rej)
+    print("Number of Stroke Patients Rejected who should be there: ", avg_rej_should)
+    print("Number of Stroke Patients Rejected who should not be there: ", avg_rej_should_not)
+    print("Average Number of beds filled: ", avg_number_beds_filled)
+    print("Average Stroke Patient Count: ", avg_stroke_patient_count)
+    print("Average # of stroke patients that should be there: ", avg_should)
+    print("Average # of stroke patients that shouldn't be there: ", avg_should_not)
+
     return
+
 
 
 def all_entries_empty(list_strings):
@@ -440,15 +484,19 @@ if __name__ == "__main__":
 
         i += 1
         ISCHEMIC_RATE = float(rows[i][1])
-        i += 1
-        HEMORRHAGIC_RATE = float(rows[i][1])
-        i += 1
-        NON_STROKE_PATIENT_DURATION = float(rows[i][1])
-        i += 1
-        PERCENTAGE_NON_STROKE = float(rows[i][1])
-        i += 1
-        TRANSFER_NEEDED_PERCENTAGE = float(rows[i][1])
-        i += 1
+        # i += 1
+        HEMORRHAGIC_RATE = float(rows[i+1][1])
+        # i += 1
+        NON_STROKE_PATIENT_DURATION = float(rows[i+2][1])
+        # i += 1
+        PERCENTAGE_NON_STROKE = float(rows[i+3][1])
+        # i += 1
+        TRANSFER_NEEDED_PERCENTAGE = float(rows[i+4][1])
+        # i += 1
+        DURATION = float(rows[i+5][1])
+        # i += 1
+        NUMBER_OF_SIMULATIONS = int(rows[i+6][1])
+        i += 7
 
         while 'CSC Configuration:' not in rows[i]:
             # print(i)
@@ -493,12 +541,19 @@ if __name__ == "__main__":
 
 
     hospital_dict = build_hospital_dict(hospital_list)
-    mySimulation = Simulation(hospital_dict)
-    mySimulation.set_verbose(False)
-    mySimulation.run_simulation()
-    for hospital in hospital_list:
-        if isinstance(hospital, CSC):
-            # pass
-            hospital.pprint()
-            # print(hospital.time_stamps)
-            hospital.graph_count()
+
+    simulations = []
+
+    for i in range(NUMBER_OF_SIMULATIONS):
+        mySimulation = Simulation(hospital_dict)
+        # mySimulation.set_verbose(False)
+        mySimulation.run_simulation()
+        simulations.append(mySimulation)
+
+    combine_simulations(simulations)
+    # for hospital in hospital_list:
+    #     if isinstance(hospital, CSC):
+    #         # pass
+    #         hospital.pprint()
+    #         # print(hospital.time_stamps)
+    #         hospital.graph_count()
