@@ -433,7 +433,7 @@ class Simulation:
         
         if event.event_type == "Arrival":
             if self.verbose:
-                print("Arrived: Patient #{}, at time {}, at hospital {}".format(event.patient.id, 
+                print("Arrived: Patient #{}, at time {}, at hospital {}".format(event.patient.id,
                 self.current_time, event.hospital_id))
 
             new_event = temp_hospital.process_arrival(event)
@@ -507,7 +507,7 @@ def combine_simulations(list_of_simulations):
     print("Number of Stroke Patients Rejected who should be there: ", avg_rej_should)
     print("Number of Stroke Patients Rejected who should not be there: ", avg_rej_should_not)
     print("Percentage of Stroke Patients who were REJECTED \n \
-        that should have been transferred {0:4.2f}%".format(100 * avg_rej_should / avg_rej))
+        that should have been transferred {0:4.2f}%".format(100 * avg_rej_should / (avg_rej_should + avg_rej_should_not)))
     print("Average Number of beds filled: {0:4.2f}".format(avg_number_beds_filled))
     print("Average Stroke Patient Count: {0:4.2f}".format(avg_stroke_patient_count))
     print("Average # of stroke patients that should be there: {0:4.2f}".format(avg_should))
