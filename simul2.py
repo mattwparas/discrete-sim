@@ -27,17 +27,22 @@ class Patient:
     Spawn Time - time that the patient was sent away from hospital
     Duration - The processing time they would see at the CSC
     '''
-    def __init__(self, pid, current_time):
+    def __init__(self, pid, current_time, from_psc):
         self.id = pid
         self.spawn_time = current_time
+        self.from_psc = from_psc
 
-        if np.random.uniform() < .15:
+        if np.random.uniform() < .13:
             self.stroke_type = "HEMORRHAGIC"
             self.duration = np.random.exponential(HEMORRHAGIC_RATE)
+            # self.duration = 7
+
             self.transfer_needed = True
         else:
             self.stroke_type = "ISCHEMIC"
             self.duration = np.random.exponential(ISCHEMIC_RATE)
+
+            # self.duration = 4
 
             if np.random.uniform() < TRANSFER_NEEDED_PERCENTAGE:
                 self.transfer_needed = True
@@ -63,11 +68,17 @@ class NonStrokePatient:
     Spawn Time - time that the patient was sent away from hospital
     Duration - The processing time they would see at the CSC
     '''
-    def __init__(self, pid, current_time):
+    def __init__(self, pid, current_time, from_psc):
         self.id = pid
         self.spawn_time = current_time
+        self.from_psc = from_psc
 
         self.duration = np.random.exponential(NON_STROKE_PATIENT_DURATION)
+
+        # self.duration = 3.3
+
+
+
         self.completion_time = self.spawn_time + self.duration
 
         # cost
@@ -89,7 +100,7 @@ class Event:
         self.hospital_id = hospital_id
 
     def __lt__(self, other):
-        return self.completion_time < other.completion_time
+        return self.completion_time <= other.completion_time
 
     def pprint(self):
         print("{} at time {}, hospital {}".format(self.event_type, self.completion_time, self.hospital_id))
@@ -103,13 +114,14 @@ class Hospital:
     Store a bunch of information regarding the rates
     Stores a bunch of meta data about the simulation process
     '''
-    def __init__(self, pid, number_of_beds, transfer_rate, arrival_rate):
+    def __init__(self, pid, number_of_beds, transfer_rate, arrival_rate_stroke, arrival_rate_non_stroke):
         self.pid = pid
         self.number_spawned = 0
         self.max_beds = number_of_beds
         self.bed_count = 0
         self.transfer_rate = transfer_rate
-        self.arrival_rate = arrival_rate
+        self.arrival_rate_stroke = arrival_rate_stroke
+        self.arrival_rate_non_stroke = arrival_rate_non_stroke
         self.rejected_count = 0
         self.time_stamps = []
         self.should_be_there_stamps = []
@@ -125,6 +137,20 @@ class Hospital:
         self.should_be_rej = 0
         self.should_not_be_rej = 0
         self.hist_values = []
+        self.stroke_from_psc = 0 ############# Come back to this
+        self.stroke_from_csc = 0 ############# Come back to this
+        self.psc_stroke_stamps = []
+        self.csc_stroke_stamps = []
+        self.non_stroke_from_psc = 0
+        self.non_stroke_from_csc = 0
+        self.psc_non_stroke_stamps = []
+        self.csc_non_stroke_stamps = []
+
+        self.average_psc = 0
+        self.average_csc = 0
+
+        self.average_non_stroke_psc = 0
+        self.average_non_stroke_csc = 0
     
     def process_departure(self, departure_event):
         '''
@@ -141,10 +167,27 @@ class Hospital:
                 self.should_be_at_csc -= 1
             else:
                 self.should_not_be_at_csc -= 1
+            
+            if patient_obj.from_psc:
+                self.stroke_from_psc -= 1
+            else:
+                self.stroke_from_csc -= 1
+        
+        else:
+            if patient_obj.from_psc:
+                self.non_stroke_from_psc -= 1
+            else:
+                self.non_stroke_from_csc -= 1
 
         self.should_be_there_stamps.append((self.should_be_at_csc, departure_event.patient.completion_time))
         self.should_not_be_there_stamps.append((self.should_not_be_at_csc, departure_event.patient.completion_time))
         self.stroke_patient_stamps.append((self.stroke_patient_count, departure_event.patient.completion_time))
+
+        self.psc_stroke_stamps.append((self.stroke_from_psc, departure_event.patient.completion_time))
+        self.csc_stroke_stamps.append((self.stroke_from_csc, departure_event.patient.completion_time))
+
+        self.psc_non_stroke_stamps.append((self.non_stroke_from_psc, departure_event.patient.completion_time))
+        self.csc_non_stroke_stamps.append((self.non_stroke_from_csc, departure_event.patient.completion_time))
             
         return False
 
@@ -171,6 +214,15 @@ class Hospital:
         self.average_should_be = self.helper_TWA(self.should_be_there_stamps)
         self.average_should_not = self.helper_TWA(self.should_not_be_there_stamps)
         self.average_stroke_count = self.helper_TWA(self.stroke_patient_stamps)
+
+        self.average_psc = self.helper_TWA(self.psc_stroke_stamps)
+        self.average_csc = self.helper_TWA(self.csc_stroke_stamps)
+
+        self.average_non_stroke_csc = self.helper_TWA(self.csc_non_stroke_stamps)
+        self.average_non_stroke_psc = self.helper_TWA(self.psc_non_stroke_stamps)
+
+
+
 
         y_vals = [0 for x in range(self.max_beds + 1)]
 
@@ -205,6 +257,7 @@ class Hospital:
         print("Average Stroke Patient Count: ", self.average_stroke_count)
         print("Average # of stroke patients that should be there: ", self.average_should_be)
         print("Average # of stroke patients that shouldn't be there: ", self.average_should_not)
+        print("Percentage of stroke patients from CSC : ", self.average_csc / (self.average_psc + self.average_csc))
 
     def graph_count(self):
         '''
@@ -271,17 +324,30 @@ class PSC(Hospital):
         '''
         patient = arrival_event.patient
         # if self.bed_count < self.max_beds:
-        if np.random.uniform() < self.transfer_rate and isinstance(patient, Patient):
-            if not CSC_IS_FULL:
-                # transfer immediately to the CSC
-                arrival_event = Event(patient, patient.spawn_time, "Arrival", 0)
-                return arrival_event
+
+        if isinstance(patient, Patient):
+            if patient.stroke_type == "HEMORRHAGIC":
+                arrival2_event = Event(patient, patient.spawn_time, "Arrival", 0)
+                return arrival2_event
+            
+            else:
+                if np.random.uniform() < self.transfer_rate:
+                    arrival2_event = Event(patient, patient.spawn_time, "Arrival", 0)
+                    return arrival2_event
+                return False
+
+        elif isinstance(patient, NonStrokePatient):
+            # if not CSC_IS_FULL:
+            arrival2_event = Event(patient, patient.spawn_time, "Arrival", 0)
+            return arrival2_event
+
+            # MORE STUFF HERE
 
         # else:
-        self.bed_count += 1
+        # self.bed_count += 1
         # generate a departure event, for the duration of their visit
-        departure_event = Event(patient, patient.completion_time, "Departure", self.pid)
-        return departure_event
+        # departure_event = Event(patient, patient.completion_time, "Departure", self.pid)
+        # return departure_event
 
         # CSC_IS_FULL = False
         # self.rejected_count += 1
@@ -301,7 +367,6 @@ class CSC(Hospital):
         If the bed count has been reached, reject and set the CSC to be full
         if not, take in the patient and calculate a completion_time
         '''
-
         patient_obj = arrival_event.patient
 
         if self.bed_count <= self.max_beds:
@@ -315,6 +380,17 @@ class CSC(Hospital):
                     self.should_be_at_csc += 1
                 else:
                     self.should_not_be_at_csc += 1
+                
+                if patient_obj.from_psc:
+                    self.stroke_from_psc += 1
+                else:
+                    self.stroke_from_csc += 1
+            
+            else:
+                if patient_obj.from_psc:
+                    self.non_stroke_from_psc += 1
+                else:
+                    self.non_stroke_from_csc += 1
 
             return departure_event
 
@@ -348,36 +424,34 @@ def arrival_spawner(list_of_hospitals):
     number_spawned = 0
 
     for hospital in list_of_hospitals:
-        if isinstance(hospital, PSC):
-            current_time = 0
-            while current_time < 2*DURATION:
 
-                if np.random.uniform() < PERCENTAGE_NON_STROKE:
-                    new_patient = NonStrokePatient(number_spawned, current_time)
-                    current_time += np.random.exponential(1.0 / hospital.arrival_rate)
-                else:
-                    new_patient = Patient(number_spawned, current_time)
+        # spawn the arrivals to the hospital of non stroke patients
 
-                    # new_patient = Patient(number_spawned, current_time)
-                    new_event = Event(new_patient, current_time, "Arrival", hospital.pid)
-                    spawning_queue.append(new_event)
-                    current_time += np.random.exponential(1.0 / hospital.arrival_rate)
-                    number_spawned += 1
-            
-        else:
-            current_time = 0
-            while current_time < 2*DURATION:
+        current_time = 0
+        while current_time < 2*DURATION:
+            current_time += np.random.exponential(1.0 / hospital.arrival_rate_non_stroke)
+            if isinstance(hospital, CSC):
+                new_patient = NonStrokePatient(number_spawned, current_time, False)
+            else:
+                new_patient = NonStrokePatient(number_spawned, current_time, True)
 
-                if np.random.uniform() < PERCENTAGE_NON_STROKE:
-                    new_patient = NonStrokePatient(number_spawned, current_time)
-                else:
-                    new_patient = Patient(number_spawned, current_time)
-
-                new_event = Event(new_patient, current_time, "Arrival", hospital.pid)
-                spawning_queue.append(new_event)
-                current_time += np.random.exponential(1.0 / hospital.arrival_rate)
-                number_spawned += 1
+            # new_patient = NonStrokePatient(number_spawned, current_time)
+ ################# CHANGE ARRIVAL RATE
+            new_event = Event(new_patient, current_time, "Arrival", hospital.pid)
+            spawning_queue.append(new_event)
+            number_spawned += 1
         
+        current_time = 0
+        while current_time < 2*DURATION:
+            current_time += np.random.exponential(1.0 / hospital.arrival_rate_stroke) 
+            if isinstance(hospital, CSC):
+                new_patient = Patient(number_spawned, current_time, False)
+            else:
+                new_patient = Patient(number_spawned, current_time, True)
+################### CHANGE ARRIVAL RATE
+            new_event = Event(new_patient, current_time, "Arrival", hospital.pid)
+            spawning_queue.append(new_event)
+            number_spawned += 1
 
     return spawning_queue
 
@@ -400,6 +474,12 @@ class Simulation:
         self.hospital_dict = hospital_dict
         self.event_queue = arrival_spawner(hospital_list)
         heapq.heapify(self.event_queue)
+
+        # self.event_queue.sort()
+
+        # for i in range(len(self.event_queue)):
+        #     print(heapq.heappop(self.event_queue).completion_time)
+
         self.current_time = 0
         self.duration = DURATION
         self.verbose = False
@@ -421,6 +501,9 @@ class Simulation:
         Getter to pop off the queue
         '''
         if self.event_queue:
+            # ret_event = self.event_queue.pop(0)
+            # self.event_queue.sort()
+            # return ret_event
             return heapq.heappop(self.event_queue)
         else:
             return False
@@ -430,25 +513,45 @@ class Simulation:
         process either event
         '''
         temp_hospital = self.get_hospital(event.hospital_id)
+
+        # self.current_time = event.completion_time
+        # print(event.completion_time)
         
         if event.event_type == "Arrival":
             if self.verbose:
-                print("Arrived: Patient #{}, at time {}, at hospital {}".format(event.patient.id,
-                self.current_time, event.hospital_id))
+                # print("Arrived: Patient #{}, at time {}, at hospital {}".format(event.patient.id,
+                # self.current_time, event.hospital_id))
+                event.pprint()
 
             new_event = temp_hospital.process_arrival(event)
 
+
+            # heapq.heappush(self.event_queue, new_event)
+
         elif event.event_type == "Departure":
             if self.verbose:
-                print("Departure: Patient #{}, at time {}, at hospital {}".format(event.patient.id, 
-                self.current_time, event.hospital_id))
+                # print("Departure: Patient #{}, at time {}, at hospital {}".format(event.patient.id, 
+                # self.current_time, event.hospital_id))
+                # print(event.completion_time)
+                event.pprint()
                 
             new_event = temp_hospital.process_departure(event)
+            # heapq.heappush(self.event_queue, new_event)
         
         if new_event:
-            heapq.heappush(self.event_queue, new_event)
+            # self.event_queue.append(new_event)
+            # self.event_queue.sort()
 
-        self.current_time = event.completion_time
+            heapq.heappush(self.event_queue, new_event)
+            # self.current_time = event.completion_time
+        
+        # heapq.heapify(self.event_queue)
+        # print(self.current_time)
+
+        if event.completion_time >= self.current_time:
+            self.current_time = event.completion_time
+        else:
+            raise Exception("Events out of order on event type {}".format(event.event_type))
         
         return
 
@@ -456,10 +559,19 @@ class Simulation:
         '''
         run it baby
         '''
+
+        self.current_time = 0
+
         while self.current_time < self.duration:
-            next_event = self.get_next_event()
+
+
+            # heapq.heapify(self.event_queue)
+
+            next_event = heapq.heappop(self.event_queue)
 
             self.process_event(next_event)
+
+            # heapq.heapify(self.event_queue)
 
 
 def combine_simulations(list_of_simulations):
@@ -476,6 +588,10 @@ def combine_simulations(list_of_simulations):
     avg_stroke_patient_count = 0
     avg_should = 0
     avg_should_not = 0
+    avg_CSC_stroke = 0
+    avg_PSC_stroke = 0
+    avg_CSC_nonstroke = 0
+    avg_PSC_nonstroke = 0
     avg_hist = [0 for x in range(number_beds_ICU + 1)]
 
     for simulation in list_of_simulations:
@@ -489,6 +605,10 @@ def combine_simulations(list_of_simulations):
                 avg_stroke_patient_count += hospital.average_stroke_count
                 avg_should += hospital.average_should_be
                 avg_should_not += hospital.average_should_not
+                avg_CSC_stroke += hospital.average_csc
+                avg_PSC_stroke += hospital.average_psc
+                avg_CSC_nonstroke += hospital.average_non_stroke_csc
+                avg_PSC_nonstroke += hospital.average_non_stroke_psc
                 avg_hist = list(map(add, avg_hist, hospital.hist_values))
     
     avg_rej /= simulation_num
@@ -498,6 +618,10 @@ def combine_simulations(list_of_simulations):
     avg_stroke_patient_count /= simulation_num
     avg_should /= simulation_num
     avg_should_not /= simulation_num
+    avg_CSC_stroke /= simulation_num
+    avg_PSC_stroke /= simulation_num
+    avg_CSC_nonstroke /= simulation_num
+    avg_PSC_nonstroke /= simulation_num
     avg_hist = [x / simulation_num for x in avg_hist]
 
     print("---------------------------------------------------")
@@ -512,6 +636,8 @@ def combine_simulations(list_of_simulations):
     print("Average Stroke Patient Count: {0:4.2f}".format(avg_stroke_patient_count))
     print("Average # of stroke patients that should be there: {0:4.2f}".format(avg_should))
     print("Average # of stroke patients that shouldn't be there: {0:4.2f}".format(avg_should_not))
+    print("Average Percentage of Stroke Patients from CSC: {0:4.2f}%".format(100 * avg_CSC_stroke / (avg_CSC_stroke + avg_PSC_stroke)))
+    print("Average Percentage of Non-Stroke Patients from CSC: {0:4.2f}%".format(100 * avg_CSC_nonstroke / (avg_CSC_nonstroke + avg_PSC_nonstroke)))
     print("---------------------------------------------------")
 
     x_vals = list(range(number_beds_ICU + 1))
@@ -553,14 +679,15 @@ if __name__ == "__main__":
         # i += 1
         NON_STROKE_PATIENT_DURATION = float(rows[i+2][1])
         # i += 1
-        PERCENTAGE_NON_STROKE = float(rows[i+3][1])
+        # PERCENTAGE_NON_STROKE = float(rows[i+3][1])
         # i += 1
-        TRANSFER_NEEDED_PERCENTAGE = float(rows[i+4][1])
+        TRANSFER_NEEDED_PERCENTAGE = float(rows[i+3][1])
         # i += 1
-        DURATION = float(rows[i+5][1])
+        DURATION = float(rows[i+4][1])
         # i += 1
-        NUMBER_OF_SIMULATIONS = int(rows[i+6][1])
-        i += 7
+        NUMBER_OF_SIMULATIONS = int(rows[i+5][1])
+        i += 6
+        # NON_STROKE_TRANSFER_RATE = .001 ################# MAKE THIS AN INPUT PARAMETER
 
         while 'CSC Configuration:' not in rows[i]:
             # print(i)
@@ -575,12 +702,17 @@ if __name__ == "__main__":
                     hospital_index = 0
                     hospital_name = rows[i][1]
                     number_beds_ICU = int(rows[i][2])
-                    arrival_rate_ICU = float(rows[i][3])
+
+                    #-------------------------------------#
+                    # arrival_rate_stroke = float(rows[i][3])
+                    arrival_rate_stroke = float(rows[i][3])
+                    arrival_rate_non_stroke = float(rows[i][4])
 
                     hospital_list.append(CSC(hospital_index, 
                                             number_beds_ICU,
                                             0.0,
-                                            arrival_rate_ICU))
+                                            arrival_rate_stroke,
+                                            arrival_rate_non_stroke))
 
                 i += 1
                 # print(i)
@@ -591,12 +723,15 @@ if __name__ == "__main__":
                     hospital_index += 1
                     hospital_name = rows[i][1]
                     hospital_transfer_rate = float(rows[i][2])
-                    arrival_rate_patients_to_hospital = float(rows[i][3])
+                    # arrival_rate_stroke = float(rows[i][3])
+                    arrival_rate_stroke = float(rows[i][3])
+                    arrival_rate_non_stroke = float(rows[i][4])
 
                     hospital_list.append(PSC(hospital_index,
                                             0,
                                             hospital_transfer_rate,
-                                            arrival_rate_patients_to_hospital))
+                                            arrival_rate_stroke,
+                                            arrival_rate_non_stroke))
                 i += 1
 
         else:
@@ -618,10 +753,13 @@ if __name__ == "__main__":
         my_hospital_dict = copy.deepcopy(hospital_dict)
 
         mySimulation = Simulation(i, my_hospital_dict)
-        # mySimulation.set_verbose(False)
+        # mySimulation.set_verbose(True)
         mySimulation.run_simulation()
 
         for hospital in my_hospital_dict.values():
+
+            # print(hospital.pid)
+
             if isinstance(hospital, CSC):
                 # pass
                 hospital.pprint()
