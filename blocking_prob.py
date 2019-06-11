@@ -1,49 +1,26 @@
 import matplotlib.pyplot as plt
-import seaborn as sns
+# import seaborn as sns
 import pandas as pd
 import numpy as np
 
 
 
-def calculate_blocking_prob(num_beds, transfer_rate, type = "small", plot = False, filename = ''):
+# if type == "small":
+
+arrival_rate_stroke_PSC = 1.8
+arrival_rate_stroke_CSC = 1.2
+arrival_rate_non_stroke_csc_psc = 2.35
 
 
+stroke_processing_rate = 1.0 / ((0.15)*(7) + (0.85)*(4))
+non_stroke_processing_rate = 1.0 / (3.3)
 
-    if type == "small":
 
-        arrival_rate_stroke_PSC = 1.8
-        arrival_rate_stroke_CSC = 1.2
-        arrival_rate_non_stroke_csc_psc = 2.35
+def calculate_blocking_prob(num_beds, transfer_rate, plot = False, filename = ''):
 
-        stroke_arrival_rate = transfer_rate*arrival_rate_stroke_PSC + arrival_rate_stroke_CSC
-        stroke_processing_rate = 1.0 / ((0.15)*(7) + (0.85)*(4))
-        non_stroke_processing_rate = 1.0 / (3.3)
+    n = num_beds
 
-        n = num_beds # 12
-
-    elif type == "medium":
-        
-        arrival_rate_stroke_PSC = 2.1
-        arrival_rate_stroke_CSC = 2.2
-        arrival_rate_non_stroke_csc_psc = 3.2
-
-        stroke_arrival_rate = transfer_rate*arrival_rate_stroke_PSC + arrival_rate_stroke_CSC
-        stroke_processing_rate = 1.0 / ((0.15)*(7) + (0.85)*(4))
-        non_stroke_processing_rate = 1.0 / (3.3)
-
-        n = num_beds # 23
-
-    elif type == "large":
-
-        arrival_rate_stroke_PSC = 2.2
-        arrival_rate_stroke_CSC = 3
-        arrival_rate_non_stroke_csc_psc = 3.3
-
-        stroke_arrival_rate = transfer_rate*arrival_rate_stroke_PSC + arrival_rate_stroke_CSC
-        stroke_processing_rate = 1.0 / ((0.15)*(7) + (0.85)*(4))
-        non_stroke_processing_rate = 1.0 / (3.3)
-
-        n = num_beds # 28
+    stroke_arrival_rate = transfer_rate*arrival_rate_stroke_PSC + arrival_rate_stroke_CSC
 
     beta = arrival_rate_non_stroke_csc_psc / (arrival_rate_non_stroke_csc_psc + stroke_arrival_rate)
     combined_arrival_rate = arrival_rate_non_stroke_csc_psc + stroke_arrival_rate
@@ -112,27 +89,27 @@ p1 = .667
 # print(.231, calculate_blocking_prob(28, .231))
 
 def overall_plots(n, sim_type = ""):
-    block_prob_array = [calculate_blocking_prob(n, x/100, type = sim_type) for x in range(0, 101)]
+    block_prob_array = [calculate_blocking_prob(n, x/100) for x in range(0, 101)]
     plot_results(block_prob_array, filename = sim_type)
     return block_prob_array
 
-def two_dim_plots(sim_type = "", save = False):
-    twod_results = [
-                [calculate_blocking_prob(n, x / 100) for x in range(0, 101)] 
-                for n in range(0, 50)
-                ]
+# def two_dim_plots(sim_type = "", save = False):
+#     twod_results = [
+#                 [calculate_blocking_prob(n, x / 100) for x in range(0, 101)] 
+#                 for n in range(0, 50)
+#                 ]
 
-    plt.subplots(figsize=(15,10))
-    ax = sns.heatmap(twod_results, linewidth=0.0)
-    ax.invert_yaxis()
-    ax.set_ylabel("Number of beds at the CSC")
-    ax.set_xlabel("Transfer Rate of Stroke Patients from PSCs")
+#     plt.subplots(figsize=(15,10))
+#     ax = sns.heatmap(twod_results, linewidth=0.0)
+#     ax.invert_yaxis()
+#     ax.set_ylabel("Number of beds at the CSC")
+#     ax.set_xlabel("Transfer Rate of Stroke Patients from PSCs")
 
-    if sim_type and save:
-        fig = ax.get_figure()
-        fig.savefig('{}_heatmap.png'.format(sim_type))
-    plt.show()
-    return
+#     if sim_type and save:
+#         fig = ax.get_figure()
+#         fig.savefig('{}_heatmap.png'.format(sim_type))
+#     plt.show()
+#     return
 
 def save_results():
     small = overall_plots(12, "small")
@@ -153,7 +130,7 @@ def save_results():
 # two_dim_plots("medium", save = True)
 # two_dim_plots("large", save = True)
 
-print(calculate_blocking_prob(28, 0.13, type = "large"))
+print(calculate_blocking_prob(28, 0.13))
 
 
 
