@@ -1,0 +1,14 @@
+﻿Parameters,Values,,,
+Ischemic Stroke Length of Length of Stay,4,,,
+Hemorrhagic Stroke Length of Stay,10,,,
+Non Stroke Length of Stay,3.3,,,
+Percentage of Ischemic Patients where Transfer is Needed,0.3,,,
+Duration of Simulation,2000,,,
+Number of Simulations,10,,,
+,,,,
+CSC Configuration:,Hospital Name,Number of Beds in ICU,Arrival Rate of Patients to the ICU w/ Stroke,Arrival Rate of Non Stroke Patients to the ICU
+,Center Hospital,15,1.2,1.8
+,,,,
+,,,,
+PSC Configuration:,Hospital Name,Transfer Rate,Arrival Rate of Stroke Patients,Rate of Non Stroke Patients Sent to the CSC
+,Lake Forest,0.2,1.8,0.55
