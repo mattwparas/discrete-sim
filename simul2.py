@@ -574,7 +574,7 @@ class Simulation:
             # heapq.heapify(self.event_queue)
 
 
-def combine_simulations(list_of_simulations):
+def combine_simulations(list_of_simulations, plot = False):
     '''
     average results from the simulation somehow
     '''
@@ -638,18 +638,22 @@ def combine_simulations(list_of_simulations):
     print("Average # of stroke patients that shouldn't be there: {0:4.2f}".format(avg_should_not))
     print("Average Percentage of Stroke Patients from CSC: {0:4.2f}%".format(100 * avg_CSC_stroke / (avg_CSC_stroke + avg_PSC_stroke)))
     print("Average Percentage of Non-Stroke Patients from CSC: {0:4.2f}%".format(100 * avg_CSC_nonstroke / (avg_CSC_nonstroke + avg_PSC_nonstroke)))
+    print("Overall Blocking Probability: {0:4.2f}%".format(100 * avg_hist[-1]))
+    print("Blocking Probability for stroke patients who should be transferred: {}".format(-1))
     print("---------------------------------------------------")
 
-    x_vals = list(range(number_beds_ICU + 1))
-    
-    plt.figure(figsize = (20, 5))
-    plt.plot(x_vals, avg_hist, '-o')
-    plt.xlabel("Number of Beds Filled")
-    plt.ylabel("Percentage of Time in that State")
-    plt.title("Distribution of Beds Filled")
-    plt.show()
+    if plot:
 
-    return
+        x_vals = list(range(number_beds_ICU + 1))
+        
+        plt.figure(figsize = (20, 5))
+        plt.plot(x_vals, avg_hist, '-o')
+        plt.xlabel("Number of Beds Filled")
+        plt.ylabel("Percentage of Time in that State")
+        plt.title("Distribution of Beds Filled")
+        plt.show()
+
+    return avg_hist[-1]
 
 
 
@@ -658,51 +662,40 @@ def all_entries_empty(list_strings):
 
 # average length of stay in hospital is 4.5 days
 
-if __name__ == "__main__":
+def one_time_sim(hospital_list):
+    pass
+    
 
+if __name__ == "__main__":
+    
     hospital_list = []
 
     print("Reading the Config File...")
-    with open('hospitals.csv', 'r', encoding='utf-8-sig') as csvfile:
+    with open('hospitals_demo.csv', 'r', encoding='utf-8-sig') as csvfile:
         readCSV = csv.reader(csvfile, delimiter=',')
         rows = [row for row in readCSV]
-
         i = 0
-
         while 'Parameters' not in rows[i]:
             i += 1
-
         i += 1
         ISCHEMIC_RATE = float(rows[i][1])
-        # i += 1
         HEMORRHAGIC_RATE = float(rows[i+1][1])
-        # i += 1
         NON_STROKE_PATIENT_DURATION = float(rows[i+2][1])
-        # i += 1
-        # PERCENTAGE_NON_STROKE = float(rows[i+3][1])
-        # i += 1
         TRANSFER_NEEDED_PERCENTAGE = float(rows[i+3][1])
-        # i += 1
         DURATION = float(rows[i+4][1])
-        # i += 1
         NUMBER_OF_SIMULATIONS = int(rows[i+5][1])
-        i += 6
-        # NON_STROKE_TRANSFER_RATE = .001 ################# MAKE THIS AN INPUT PARAMETER
-
+        i += 1
         while 'CSC Configuration:' not in rows[i]:
-            # print(i)
             i += 1
             # advance while we still have 
         if 'CSC Configuration:' in rows[i]:
             i += 1
-
             while 'PSC Configuration:' not in rows[i]:
                 if not all_entries_empty(rows[i]):
                     # print(rows[i])
                     hospital_index = 0
                     hospital_name = rows[i][1]
                     number_beds_ICU = int(rows[i][2])
-
                     #-------------------------------------#
                     # arrival_rate_stroke = float(rows[i][3])
                     arrival_rate_stroke = float(rows[i][3])
@@ -713,69 +706,72 @@ if __name__ == "__main__":
                                             0.0,
                                             arrival_rate_stroke,
                                             arrival_rate_non_stroke))
-
                 i += 1
-                # print(i)
             i += 1
             while i < len(rows):
                 if not all_entries_empty(rows[i]):
-                    # print(rows[i])
                     hospital_index += 1
                     hospital_name = rows[i][1]
                     hospital_transfer_rate = float(rows[i][2])
-                    # arrival_rate_stroke = float(rows[i][3])
                     arrival_rate_stroke = float(rows[i][3])
                     arrival_rate_non_stroke = float(rows[i][4])
-
                     hospital_list.append(PSC(hospital_index,
                                             0,
                                             hospital_transfer_rate,
                                             arrival_rate_stroke,
                                             arrival_rate_non_stroke))
                 i += 1
-
         else:
             print("Something wrong with the config file, please reset back to base state")
             # exit
-
     print("     -> Finished Reading the Config File!\n")
 
-    print("Building the simulations...\n")
+    blocking_probabilities = []
 
-    hospital_dict = build_hospital_dict(hospital_list)
+    for rate in range(0, 1):
 
-    simulations = []
+        # print("############# TRANSFER RATE = {} #############".format(rate))
 
-    for i in range(NUMBER_OF_SIMULATIONS):
+        # for hospital in hospital_list:
+        #     if isinstance(hospital, PSC):
+        #         hospital.transfer_rate = rate / 100
 
-        print("Starting Simulation # {}...".format(i + 1))
+        
+        print("Building the simulations...\n")
 
-        my_hospital_dict = copy.deepcopy(hospital_dict)
+        hospital_dict = build_hospital_dict(hospital_list)
+        simulations = []
+        for i in range(NUMBER_OF_SIMULATIONS):
+            print("Starting Simulation # {}...".format(i + 1))
+            my_hospital_dict = copy.deepcopy(hospital_dict)
+            mySimulation = Simulation(i, my_hospital_dict)
+            # mySimulation.set_verbose(True)
+            mySimulation.run_simulation()
+            for hospital in my_hospital_dict.values():
+                # print(hospital.pid)
+                if isinstance(hospital, CSC):
+                    pass
+                    # hospital.pprint()
 
-        mySimulation = Simulation(i, my_hospital_dict)
-        # mySimulation.set_verbose(True)
-        mySimulation.run_simulation()
+            simulations.append(mySimulation)
+            print("     -> Finished Simulation # {}!\n".format(i + 1))
 
-        for hospital in my_hospital_dict.values():
-
-            # print(hospital.pid)
-
-            if isinstance(hospital, CSC):
-                # pass
-                hospital.pprint()
-                # print(hospital.time_stamps)
-                # hospital.graph_count()
-
-                # hospital.graph_distribution()
+        blocking_probabilities.append(100 * combine_simulations(simulations, plot = True))
 
 
-        simulations.append(mySimulation)
-        print("     -> Finished Simulation # {}!\n".format(i + 1))
+    print(blocking_probabilities)
+    
 
-    combine_simulations(simulations)
-    # for hospital in hospital_list:
-    #     if isinstance(hospital, CSC):
-    #         # pass
-    #         hospital.pprint()
-    #         # print(hospital.time_stamps)
-    #         hospital.graph_count()
+    # plt.figure(figsize = (20, 5))
+    # nums = [x/100 for x in range(len(blocking_probabilities))]
+    # # plt.xticks(nums)
+    # plt.plot(nums, blocking_probabilities, '-o')
+    # plt.ylabel("% of Patients blocked by full ICU")
+    # plt.xlabel("Transfer Rate of Stroke Patients")
+    # # plt.xlabel("")
+
+    # # if filename:
+    # print("Saving file...")
+    # plt.savefig("large_simulation_output.png")
+
+    # plt.show()
