@@ -37,7 +37,7 @@ def calculate_blocking_prob(num_beds, transfer_rate, plot = False, filename = ''
 
     probs = [100 * x / denom_sum for x in denom]
     blocking_prob = denom[-1] / denom_sum
-    
+
     # print(probs)
 
     if plot:
@@ -52,7 +52,7 @@ def calculate_blocking_prob(num_beds, transfer_rate, plot = False, filename = ''
         if filename:
             print("Saving file...")
             plt.savefig("{}.png".format(filename))
-    
+
     return 100 * blocking_prob
 
 
@@ -95,7 +95,7 @@ def overall_plots(n, sim_type = ""):
 
 # def two_dim_plots(sim_type = "", save = False):
 #     twod_results = [
-#                 [calculate_blocking_prob(n, x / 100) for x in range(0, 101)] 
+#                 [calculate_blocking_prob(n, x / 100) for x in range(0, 101)]
 #                 for n in range(0, 50)
 #                 ]
 
@@ -116,7 +116,7 @@ def save_results():
     med = overall_plots(23, "medium")
     large = overall_plots(28, "large")
 
-    my_data = {'Transfer Rates': [x/100 for x in range(0, 101)], 
+    my_data = {'Transfer Rates': [x/100 for x in range(0, 101)],
             'Small CSC': small,
             'Medium CSC': med,
             'Large CSC': large}
@@ -138,7 +138,7 @@ print(calculate_blocking_prob(28, 0.13))
 # df2 = pd.DataFrame(np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
 # ...                    columns=['a', 'b', 'c'])
 
-# df = pd.DataFrame(data = np.array([[x/100 for x in range(0, 101)], np.array(small), np.array(med), np.array(large)]), 
+# df = pd.DataFrame(data = np.array([[x/100 for x in range(0, 101)], np.array(small), np.array(med), np.array(large)]),
 #                     columns = ['Transfer Rates', 'Small CSC', 'Medium CSC', 'Large CSC'])
 
 # df.to_csv("Results.csv", index=False)
@@ -151,7 +151,7 @@ print(calculate_blocking_prob(28, 0.13))
 # reVals = [x for x in range(0, 50)].reverse()
 
 # twod_results = [
-#                 [calculate_blocking_prob(n, x / 100) for x in range(0, 101)] 
+#                 [calculate_blocking_prob(n, x / 100) for x in range(0, 101)]
 #                 for n in range(0, 50)
 #                 ]
 

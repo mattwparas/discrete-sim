@@ -18,9 +18,6 @@ NON_STROKE_PATIENT_DURATION = None
 PERCENTAGE_NON_STROKE = None
 NUMBER_OF_SIMULATIONS = None
 
-# set the seed
-# np.random.seed(23)
-
 class Patient:
     '''
     Represents a single entity in the system (i.e. a 'patient')
@@ -536,7 +533,7 @@ def combine_simulations(list_of_simulations, plot = False, toCSV = False):
     print("Average Percentage of Stroke Patients from CSC: {0:4.2f}%".format(100 * avg_CSC_stroke / (avg_CSC_stroke + avg_PSC_stroke)))
     print("Average Percentage of Non-Stroke Patients from CSC: {0:4.2f}%".format(100 * avg_CSC_nonstroke / (avg_CSC_nonstroke + avg_PSC_nonstroke)))
     print("Overall Blocking Probability: {0:4.2f}%".format(100 * avg_hist[-1]))
-    print("Blocking Probability for stroke patients who should be transferred: {}".format(-1))
+    # print("Blocking Probability for stroke patients who should be transferred: {}".format(-1))
     print("---------------------------------------------------")
 
     if plot:
